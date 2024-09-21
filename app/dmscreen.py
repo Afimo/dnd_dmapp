@@ -1,20 +1,23 @@
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QVBoxLayout, QProgressBar,
+    QApplication, QWidget, QLabel, QVBoxLayout, QProgressBar, QStyleFactory, QSpacerItem,
     QRadioButton, QPushButton, QLineEdit, QHBoxLayout, QButtonGroup, QGridLayout, QSizePolicy
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QObject
+from PySide6.QtGui import QMovie
 
 class CharacterWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Characters and Health")
-        
         self.pc_health_bars = {}  
         self.npc_labels = {}  
         self.max_health = {}  
-        
+        self.deathscreen_widget = None
+
         self.layout = QVBoxLayout()
-        
+        self.npc_layout = QHBoxLayout()
+        self.npc_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+
         self.pcs = {
             "hero1": 15,
             "hero2": 15,  
@@ -31,7 +34,9 @@ class CharacterWindow(QWidget):
         }
         self.create_health_bars()
 
+        self.layout.addLayout(self.npc_layout)
         self.setLayout(self.layout)
+        self.adjustSize()
     
     def create_health_bars(self):
         if self.pcs:
@@ -46,23 +51,25 @@ class CharacterWindow(QWidget):
         h_layout = QHBoxLayout()
 
         if is_pc:
-            pc_label = QLabel(f"{name} (PC)")
-            pc_label.setStyleSheet('color : orange;')
+            pc_label = QLabel(f"{name}")
+            pc_label.setStyleSheet('color : orange; font-size: 20pt;')
             health_bar = QProgressBar()
             health_bar.setMaximum(health)  
             health_bar.setValue(health)
             health_bar.setAlignment(Qt.AlignCenter)
-            health_bar.setTextVisible(True)
+            health_bar.setTextVisible(False)
 
             h_layout.addWidget(pc_label)
             h_layout.addWidget(health_bar)
             self.pc_health_bars[name] = health_bar  
         else:
             npc_label = QLabel(name)
+            npc_label.setAlignment(Qt.AlignCenter)
             self.npc_labels[name] = npc_label  
-            h_layout.addWidget(npc_label)
+            self.npc_layout.addWidget(npc_label)
 
         self.layout.addLayout(h_layout)
+        self.layout.update()
 
         self.max_health[name] = health
         
@@ -98,7 +105,7 @@ class CharacterWindow(QWidget):
             health_bar.setStyleSheet(f"QProgressBar::chunk {{background-color: {color};}}")
         else:
             npc_label = self.npc_labels[name]
-            npc_label.setStyleSheet(f"color: {npc_color};")
+            npc_label.setStyleSheet(f"color: {npc_color}; font-size: 15pt;")
 
     def add_npc(self, name, health):
         if name not in self.npcs:
@@ -123,6 +130,22 @@ class CharacterWindow(QWidget):
                                 break
                 self.update()  
 
+    def init_deathscreen(self, init: bool):
+        if init:
+            if not self.deathscreen_widget:  
+                self.deathscreen_widget = QLabel()
+                movie = QMovie('resources/im-waiting.gif')
+                self.deathscreen_widget.setMovie(movie)
+                movie.start()
+                self.layout.addWidget(self.deathscreen_widget)
+        else:
+            if self.deathscreen_widget: 
+                self.layout.removeWidget(self.deathscreen_widget)
+                self.deathscreen_widget.deleteLater()  
+                self.deathscreen_widget = None
+        self.update()  
+
+
 class ControlWindow(QWidget):
     def __init__(self, character_window):
         super().__init__()
@@ -130,7 +153,6 @@ class ControlWindow(QWidget):
         self.character_window = character_window
         
         layout = QGridLayout()
-        #layout = QVBoxLayout()
 
         self.npc_name = QLineEdit()
         self.npc_name.setPlaceholderText("Enter new NPC name")
@@ -170,7 +192,7 @@ class ControlWindow(QWidget):
         layout.addWidget(QLabel("Player Characters"), 0, 1)
         i = 1
         for name in self.character_window.pcs.keys():
-            radio_button = QRadioButton(f"{name}")
+            radio_button = QRadioButton(f"{name} (PC)")
             radio_button.setStyleSheet("color: orange")
             layout.addWidget(radio_button, i, 1)
             self.character_buttons[name] = radio_button
@@ -207,18 +229,22 @@ class ControlWindow(QWidget):
             self.character_buttons[name] = radio_button
             self.button_group.addButton(radio_button)
 
-    def remove_npc(self, name = False):
+    def remove_npc(self, name=False):
         if name:
             selected_character = name
         else:
             selected_character = self.get_selected_character()
-        
+
         if selected_character and selected_character in self.character_window.npcs:
             self.character_window.remove_npc(selected_character)
+
             radio_button = self.character_buttons.pop(selected_character, None)
             if radio_button:
-                self.layout().removeWidget(radio_button)
+                self.layout().removeWidget(radio_button)  
                 radio_button.deleteLater()
+
+        self.update()
+
     
     def apply_damage(self):
         selected_character = self.get_selected_character()
@@ -227,10 +253,14 @@ class ControlWindow(QWidget):
             current_health = self.get_character_health(selected_character)
             new_health = max(0, current_health - damage)
 
-            if new_health == 0: 
+            if new_health <= 0:
                 self.remove_npc(selected_character)
+                self.update_character_health(selected_character, new_health)
+                if selected_character in self.character_window.pcs.keys():
+                    self.character_window.init_deathscreen(True)
             else:
                 self.update_character_health(selected_character, new_health)
+
 
     def apply_heal(self):
         selected_character = self.get_selected_character()
@@ -240,6 +270,9 @@ class ControlWindow(QWidget):
             max_health = self.character_window.max_health[selected_character]
             new_health = min(max_health, current_health + heal)
             self.update_character_health(selected_character, new_health)
+
+            if current_health <= 0:
+                self.character_window.init_deathscreen(False)
 
     def get_character_health(self, name):
         if name in self.character_window.pcs:
@@ -257,6 +290,7 @@ class ControlWindow(QWidget):
 
 if __name__ == "__main__":
     app = QApplication([])
+    app.setStyle(QStyleFactory.create('fusion'))
 
     character_window = CharacterWindow()
     character_window.show()
