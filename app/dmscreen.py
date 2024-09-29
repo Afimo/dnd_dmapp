@@ -23,7 +23,6 @@ class CharacterWindow(QWidget):
             "hero2": 15,  
             "hero3": 15,  
             "hero4": 15,  
-  
         }
         
         self.npcs = {
