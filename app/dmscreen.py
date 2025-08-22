@@ -38,6 +38,19 @@ class HeroConfigDialog(QDialog):
         self.layout.addWidget(self.done_button)
 
         self.setLayout(self.layout)
+    def add_hero(self):
+        name = self.name_input.text().strip()
+        health_text = self.health_input.text().strip()
+        if name and health_text.isdigit():
+            health = int(health_text)
+            self.heroes[name] = health
+            self.hero_list.addItem(f'{name}: {health}')
+            self.name_input.clear()
+            self.health_input.clear()
+    def get_heroes(self):
+        return self.heroes
+
+
 
 class PlayerCharacters(): #TODO: Use class or db
     def init(self, hero_config):
@@ -202,7 +215,8 @@ class ControlWindow(QWidget):
         super().__init__()
         self.setWindowTitle('Control Panel')
         self.character_window = character_window
-        
+        self.edit_window = edit_window
+
         layout = QGridLayout()
 
         self.npc_name = QLineEdit()
@@ -266,8 +280,10 @@ class ControlWindow(QWidget):
         self.setLayout(layout)
 
     def open_edit_window(self) -> None:
-        if edit_window.exec() == QDialog.Accepted:
-            edit_window.destroy()
+        if self.edit_window.exec() == QDialog.Accepted:
+            self.character_window.pcs = self.edit_window.get_heroes()
+            self.refresh_pc_buttons()
+
 
     def get_selected_character(self):
         for name, button in self.character_buttons.items():
@@ -397,6 +413,28 @@ class ControlWindow(QWidget):
         else:
             self.character_window.npcs[name] = new_health
             self.character_window.update_npc_health(name, new_health)
+
+    def refresh_pc_buttons(self):
+        # Remove old PC buttons
+        for name in list(self.character_buttons.keys()):
+            if name in self.character_window.pcs:
+                # already handled
+                continue
+            button = self.character_buttons.pop(name, None)
+            if button:
+                self.layout().removeWidget(button)
+                button.deleteLater()
+        
+        # Add missing PC buttons
+        for name in self.character_window.pcs.keys():
+            if name not in self.character_buttons:
+                radio_button = QRadioButton(f'{name} (PC)')
+                radio_button.setStyleSheet('color: orange')
+                self.layout().addWidget(radio_button, self.pc_row, 1)
+                self.character_buttons[name] = radio_button
+                self.button_group.addButton(radio_button)
+                self.pc_row += 1
+
 
 
 class EditWindow(QDialog):
