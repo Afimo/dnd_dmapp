@@ -207,7 +207,29 @@ class CharacterWindow(QWidget):
                 self.layout.removeWidget(self.deathscreen_widget)
                 self.deathscreen_widget.deleteLater()  
                 self.deathscreen_widget = None
-        self.update()  
+        self.update()
+        self.adjustSize()
+
+
+    def refresh_players(self):
+        self.pcs = edit_window.get_heroes()
+        # Add new players
+        for name, health in self.pcs.items():
+            if name not in self.pc_health_bars.keys():
+                self.add_health_bar(name, health, is_pc=True)
+        # Remove old players
+        to_remove = []
+        for name, health in self.pc_health_bars.items():
+            if name not in self.pcs.keys():
+                to_remove.append(name)
+        if to_remove:
+            for name in to_remove:
+                self.pc_health_bars.pop(name)
+        
+        self.adjustSize()
+        
+                
+
 
 
 class ControlWindow(QWidget):
@@ -279,10 +301,11 @@ class ControlWindow(QWidget):
 
         self.setLayout(layout)
 
-    def open_edit_window(self) -> None:
+    def open_edit_window(self) -> None: # Add Players
         if self.edit_window.exec() == QDialog.Accepted:
             self.character_window.pcs = self.edit_window.get_heroes()
             self.refresh_pc_buttons()
+            self.character_window.refresh_players()
 
 
     def get_selected_character(self):
@@ -415,17 +438,16 @@ class ControlWindow(QWidget):
             self.character_window.update_npc_health(name, new_health)
 
     def refresh_pc_buttons(self):
-        # Remove old PC buttons
+        # remove old pcs
         for name in list(self.character_buttons.keys()):
-            if name in self.character_window.pcs:
-                # already handled
+            if name in self.character_window.pcs or name in self.npc_row_map.keys(): # ALSO CHECK FOR NPCS AAAAAH
                 continue
             button = self.character_buttons.pop(name, None)
             if button:
                 self.layout().removeWidget(button)
                 button.deleteLater()
         
-        # Add missing PC buttons
+        # add new pcs
         for name in self.character_window.pcs.keys():
             if name not in self.character_buttons:
                 radio_button = QRadioButton(f'{name} (PC)')
@@ -434,7 +456,6 @@ class ControlWindow(QWidget):
                 self.character_buttons[name] = radio_button
                 self.button_group.addButton(radio_button)
                 self.pc_row += 1
-
 
 
 class EditWindow(QDialog):
