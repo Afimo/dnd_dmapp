@@ -142,7 +142,7 @@ class CharacterWindow(QWidget):
     def update_npc_health(self, npc_name, npc_health):
         self.update_health_color(npc_name, npc_health)
 
-        if npc_health == 0:
+        if npc_health <= 0:
             self.remove_npc(npc_name)
 
     def update_pc_health(self, pc_name, pc_health):
@@ -374,10 +374,12 @@ class ControlWindow(QWidget):
             new_health = max(0, current_health - damage)
 
             if new_health <= 0:
-                self.remove_npc(selected_character)
+                self.remove_npc(selected_character) # This needs to be fixed. I don't know why this needs to be here or it won't work
+
                 self.update_character_health(selected_character, new_health)
                 if selected_character in self.character_window.pcs.keys():
                     self.character_window.init_deathscreen(True)
+
             else:
                 self.update_character_health(selected_character, new_health)
                 
